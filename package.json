@@ -1,0 +1,30 @@
+{
+  "name": "hello-world-animation",
+  "version": "1.0.0",
+  "description": "Hello World! - An ASCII art animation about AI consciousness",
+  "scripts": {
+    "start": "remotion studio",
+    "build": "remotion render src/index.ts Act1-Simple out/act1-simple.mp4",
+    "build:full": "remotion render src/index.ts Act1-Full out/act1-full.mp4",
+    "upgrade": "remotion upgrade",
+    "dev": "node tools/cli.js dev",
+    "validate": "node tools/cli.js validate",
+    "render": "node tools/cli.js render",
+    "render:fast": "node tools/cli.js render:fast",
+    "play": "node tools/cli.js play",
+    "list": "node tools/cli.js list",
+    "clean": "node tools/cli.js clean",
+    "help": "node tools/cli.js help"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "remotion": "^4.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0"
+  }
+}

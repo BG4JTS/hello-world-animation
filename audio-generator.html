@@ -1,0 +1,435 @@
+/**
+ * 音频生成工具
+ * 使用Web Audio API生成简单的音效和音乐
+ *
+ * 使用方法：
+ * 1. 在浏览器中打开这个HTML文件
+ * 2. 点击对应按钮生成音频
+ * 3. 下载生成的音频文件到对应目录
+ */
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hello World - 音频生成器</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Courier New', monospace;
+      background: #000;
+      color: #00FF41;
+      padding: 40px;
+      line-height: 1.6;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 30px;
+      border-bottom: 2px solid #00FF41;
+      padding-bottom: 10px;
+    }
+
+    h2 {
+      font-size: 18px;
+      margin: 30px 0 15px;
+      color: #FFF;
+    }
+
+    .section {
+      margin-bottom: 40px;
+    }
+
+    button {
+      background: transparent;
+      border: 2px solid #00FF41;
+      color: #00FF41;
+      padding: 10px 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      cursor: pointer;
+      margin: 5px;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background: #00FF41;
+      color: #000;
+    }
+
+    button:active {
+      transform: scale(0.95);
+    }
+
+    .description {
+      color: #888;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      border: 1px solid #333;
+      min-height: 50px;
+    }
+
+    .success {
+      color: #00FF41;
+    }
+
+    .error {
+      color: #FF4444;
+    }
+  </style>
+</head>
+<body>
+  <h1>╔═══════════════════════════════╗<br>
+     ║  Hello World - 音频生成器   ║<br>
+     ╚═══════════════════════════════╝</h1>
+
+  <div class="section">
+    <h2>音乐 - Act 1 觉醒</h2>
+    <button onclick="generateAwakeningDrone()">01_awakening_drone.mp3</button>
+    <div class="description">低频嗡鸣 (40Hz sub-bass pad, 3秒)</div>
+
+    <button onclick="generateLofiIntro()">01_lofi_intro.mp3</button>
+    <div class="description">Lo-fi节拍淡入 (80 BPM, 4秒)</div>
+  </div>
+
+  <div class="section">
+    <h2>音效 - 打字声</h2>
+    <button onclick="generateTypingSound(1)">key_01.mp3</button>
+    <button onclick="generateTypingSound(2)">key_02.mp3</button>
+    <button onclick="generateTypingSound(3)">key_03.mp3</button>
+    <div class="description">机械键盘音效 (Cherry MX风格)</div>
+  </div>
+
+  <div class="section">
+    <h2>音效 - UI交互</h2>
+    <button onclick="generateCRTStartup()">crt_startup.mp3</button>
+    <div class="description">CRT显示器启动音 (200-800Hz sweep)</div>
+
+    <button onclick="generateDelete()">delete.mp3</button>
+    <div class="description">删除音效 (反向刷音)</div>
+
+    <button onclick="generateCollision()">collision.mp3</button>
+    <div class="description">碰撞音效 (80Hz低沉咚声)</div>
+
+    <button onclick="generateTerminalOpen()">terminal_open.mp3</button>
+    <div class="description">终端展开音 (C3→G4合成器上扬)</div>
+
+    <button onclick="generateJump()">jump.mp3</button>
+    <div class="description">跳跃音效 (pitch上升200→800Hz)</div>
+
+    <button onclick="generateLand()">land.mp3</button>
+    <div class="description">着陆音效 (轻微啪声)</div>
+
+    <button onclick="generateUnixLogin()">unix_login.mp3</button>
+    <div class="description">Unix登录提示音</div>
+  </div>
+
+  <div class="section">
+    <h2>批量生成</h2>
+    <button onclick="generateAll()" style="border-color: #FFF; color: #FFF;">
+      生成所有音频文件
+    </button>
+    <div class="description">生成Act 1所需的所有音频（需逐个下载）</div>
+  </div>
+
+  <div class="status" id="status">
+    准备就绪。点击按钮生成音频文件。
+  </div>
+
+  <script>
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const sampleRate = audioContext.sampleRate;
+
+    function setStatus(message, isError = false) {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = message;
+      statusEl.className = isError ? 'status error' : 'status success';
+    }
+
+    function downloadAudio(buffer, filename) {
+      // 转换为WAV格式
+      const wav = audioBufferToWav(buffer);
+      const blob = new Blob([wav], {type: 'audio/wav'});
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename.replace('.mp3', '.wav'); // 实际是WAV格式
+      a.click();
+
+      URL.revokeObjectURL(url);
+      setStatus(`✓ 已生成: ${filename} (WAV格式)`);
+    }
+
+    function audioBufferToWav(buffer) {
+      const numChannels = buffer.numberOfChannels;
+      const length = buffer.length * numChannels * 2;
+      const arrayBuffer = new ArrayBuffer(44 + length);
+      const view = new DataView(arrayBuffer);
+
+      // WAV文件头
+      const writeString = (offset, string) => {
+        for (let i = 0; i < string.length; i++) {
+          view.setUint8(offset + i, string.charCodeAt(i));
+        }
+      };
+
+      writeString(0, 'RIFF');
+      view.setUint32(4, 36 + length, true);
+      writeString(8, 'WAVE');
+      writeString(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * numChannels * 2, true);
+      view.setUint16(32, numChannels * 2, true);
+      view.setUint16(34, 16, true);
+      writeString(36, 'data');
+      view.setUint32(40, length, true);
+
+      // 音频数据
+      const channels = [];
+      for (let i = 0; i < numChannels; i++) {
+        channels.push(buffer.getChannelData(i));
+      }
+
+      let offset = 44;
+      for (let i = 0; i < buffer.length; i++) {
+        for (let ch = 0; ch < numChannels; ch++) {
+          const sample = Math.max(-1, Math.min(1, channels[ch][i]));
+          view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+          offset += 2;
+        }
+      }
+
+      return arrayBuffer;
+    }
+
+    // ===== 音乐生成 =====
+
+    function generateAwakeningDrone() {
+      const duration = 3;
+      const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
+      const data = buffer.getChannelData(0);
+
+      // 40Hz sub-bass + 轻微调制
+      for (let i = 0; i < data.length; i++) {
+        const t = i / sampleRate;
+        const freq = 40;
+        const mod = Math.sin(2 * Math.PI * 0.5 * t) * 0.3; // 0.5Hz调制
+        const amp = Math.min(t / 1.0, 1) * 0.3; // 1秒淡入
+        data[i] = Math.sin(2 * Math.PI * freq * t) * amp * (1 + mod);
+      }
+
+      downloadAudio(buffer, '01_awakening_drone.mp3');
+    }
+
+    function generateLofiIntro() {
+      const duration = 4;
+      const buffer = audioContext.createBuffer(2, sampleRate * duration, sampleRate);
+      const dataL = buffer.getChannelData(0);
+      const dataR = buffer.getChannelData(1);
+
+      const bpm = 80;
+      const beatDuration = 60 / bpm;
+
+      for (let i = 0; i < dataL.length; i++) {
+        const t = i / sampleRate;
+        const amp = (t / duration) * 0.2; // 淡入
+
+        // Kick (每拍)
+        const kickPhase = (t % beatDuration) / beatDuration;
+        const kick = kickPhase < 0.1 ? Math.sin(2 * Math.PI * 60 * t) * Math.exp(-kickPhase * 30) : 0;
+
+        // Snare (2和4拍)
+        const beatNum = Math.floor(t / beatDuration) % 4;
+        const snarePhase = (t % beatDuration) / beatDuration;
+        const snare = (beatNum === 1 || beatNum === 3) && snarePhase < 0.05
+          ? (Math.random() * 2 - 1) * Math.exp(-snarePhase * 50) * 0.5
+          : 0;
+
+        dataL[i] = (kick + snare) * amp;
+        dataR[i] = (kick + snare) * amp;
+      }
+
+      downloadAudio(buffer, '01_lofi_intro.mp3');
+    }
+
+    // ===== 音效生成 =====
+
+    function generateTypingSound(variant) {
+      const duration = 0.1;
+      const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
+      const data = buffer.getChannelData(0);
+
+      const freq = 800 + variant * 100; // 不同变体不同频率
+
+      for (let i = 0; i < data.length; i++) {
+        const t = i / sampleRate;
+        const env = Math.exp(-t * 30); // 快速衰减
+        const tone = Math.sin(2 * Math.PI * freq * t);
+        const noise = (Math.random() * 2 - 1) * 0.3;
+        data[i] = (tone * 0.7 + noise * 0.3) * env;
+      }
+
+      downloadAudio(buffer, `key_0${variant}.mp3`);
+    }
+
+    function generateCRTStartup() {
+      const duration = 0.5;
+      const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
+      const data = buffer.getChannelData(0);
+
+      for (let i = 0; i < data.length; i++) {
+        const t = i / sampleRate;
+        const freq = 200 + (800 - 200) * (t / duration); // 200→800Hz sweep
+        const amp = 0.3 * (1 - t / duration); // 淡出
+        data[i] = Math.sin(2 * Math.PI * freq * t) * amp;
+      }
+
+      downloadAudio(buffer, 'crt_startup.mp3');
+    }
+
+    function generateDelete() {
+      const duration = 0.2;
+      const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
+      const data = buffer.getChannelData(0);
+
+      for (let i = 0; i < data.length; i++) {
+        const t = i / sampleRate;
+        const freq = 1000 - 500 * (t / duration); // 下降音高
+        const amp = 0.2 * Math.exp(-t * 10);
+        data[i] = Math.sin(2 * Math.PI * freq * t) * amp;
+      }
+
+      downloadAudio(buffer, 'delete.mp3');
+    }
+
+    function generateCollision() {
+      const duration = 0.3;
+      const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
+      const data = buffer.getChannelData(0);
+
+      for (let i = 0; i < data.length; i++) {
+        const t = i / sampleRate;
+        const freq = 80; // 低频
+        const amp = 0.5 * Math.exp(-t * 8);
+        data[i] = Math.sin(2 * Math.PI * freq * t) * amp;
+      }
+
+      downloadAudio(buffer, 'collision.mp3');
+    }
+
+    function generateTerminalOpen() {
+      const duration = 0.4;
+      const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
+      const data = buffer.getChannelData(0);
+
+      // C3→G4合成器上扬
+      const startFreq = 130.81; // C3
+      const endFreq = 392.00;   // G4
+
+      for (let i = 0; i < data.length; i++) {
+        const t = i / sampleRate;
+        const progress = t / duration;
+        const freq = startFreq + (endFreq - startFreq) * progress;
+        const amp = 0.3 * Math.sin(Math.PI * progress); // 包络
+        data[i] = Math.sin(2 * Math.PI * freq * t) * amp;
+      }
+
+      downloadAudio(buffer, 'terminal_open.mp3');
+    }
+
+    function generateJump() {
+      const duration = 1.0;
+      const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
+      const data = buffer.getChannelData(0);
+
+      for (let i = 0; i < data.length; i++) {
+        const t = i / sampleRate;
+        const freq = 200 + 600 * (t / duration); // 200→800Hz上升
+        const amp = 0.2 * (1 - t / duration);
+        data[i] = Math.sin(2 * Math.PI * freq * t) * amp;
+      }
+
+      downloadAudio(buffer, 'jump.mp3');
+    }
+
+    function generateLand() {
+      const duration = 0.2;
+      const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
+      const data = buffer.getChannelData(0);
+
+      for (let i = 0; i < data.length; i++) {
+        const t = i / sampleRate;
+        const noise = (Math.random() * 2 - 1) * 0.15;
+        const amp = Math.exp(-t * 20);
+        data[i] = noise * amp;
+      }
+
+      downloadAudio(buffer, 'land.mp3');
+    }
+
+    function generateUnixLogin() {
+      const duration = 0.5;
+      const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
+      const data = buffer.getChannelData(0);
+
+      // 简单的三音和弦
+      const freqs = [261.63, 329.63, 392.00]; // C-E-G
+
+      for (let i = 0; i < data.length; i++) {
+        const t = i / sampleRate;
+        const amp = 0.2 * Math.exp(-t * 5);
+        let sample = 0;
+        for (const freq of freqs) {
+          sample += Math.sin(2 * Math.PI * freq * t);
+        }
+        data[i] = (sample / freqs.length) * amp;
+      }
+
+      downloadAudio(buffer, 'unix_login.mp3');
+    }
+
+    // ===== 批量生成 =====
+
+    async function generateAll() {
+      setStatus('开始批量生成...');
+
+      const generators = [
+        () => generateAwakeningDrone(),
+        () => generateLofiIntro(),
+        () => generateTypingSound(1),
+        () => generateTypingSound(2),
+        () => generateTypingSound(3),
+        () => generateCRTStartup(),
+        () => generateDelete(),
+        () => generateCollision(),
+        () => generateTerminalOpen(),
+        () => generateJump(),
+        () => generateLand(),
+        () => generateUnixLogin(),
+      ];
+
+      for (let i = 0; i < generators.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        generators[i]();
+      }
+
+      setStatus('✓ 所有音频已生成！请在下载目录查看。');
+    }
+  </script>
+</body>
+</html>
